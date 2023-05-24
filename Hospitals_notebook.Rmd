@@ -1,0 +1,267 @@
+---
+title: "R Notebook for Project"
+output: html_notebook
+
+---
+# Introduction
+We will analyze data in the hospitals.csv file from CORGIS. 
+
+I first load the tidyverse library and read in the CSV I'll use, 
+hospitals.csv. Here I have the file in a subfolder called "data".
+```{r}
+library(tidyverse)
+hospitals <- read_csv("data/hospitals.csv")
+```
+## Questions
+
+We would like to answer the following questions:
+  - How does UCSF compare to other medical centers in SF in terms of overall ratings and the cost of certain procedures?
+  - Do the ratings of hospitals in CA differ depending on the type of facility, like church, government, proprietary, etc.?
+  - How do CA’s hospitals compare nationally in terms of overall ratings and the cost of certain procedures?
+
+## Data Analysis
+
+### San Francisco
+
+To answer these questions, let's first make a subset of the hospitals CSV that only looks at hospitals in CA:
+
+```{r}
+ca_hospitals <- hospitals%>%
+  filter(Facility.State=="CA")
+ca_hospitals
+```
+
+I could directly subset by hospitals that contain only the facility city San Francisco, but there are actually other towns named San Francisco in the US in CO and MN, so I wanted to be as specific as possible to the Bay Area SF. I further subset into hospitals where the facility city is San Francisco:
+
+```{r}
+san_francisco_hospitals <- ca_hospitals%>%
+  filter(Facility.City=="San Francisco")
+```
+
+Of this subset, I will isolate two columns, one for the facility name and one for the cost of a hip-knee procedure. I turn this into its own data frame and make a bar graph to visualize the cost of the procedure at different hospitals in the city.
+
+```{r}
+sf_facilities <- san_francisco_hospitals$Facility.Name
+sf_hip <- san_francisco_hospitals$`Procedure.Hip Knee.Cost`
+bar <- data.frame(sf_facilities, sf_hip)
+ggplot(bar)+geom_col(mapping=aes(x=sf_facilities, fill=sf_facilities, y=sf_hip))+
+  scale_x_discrete(guide = guide_axis(angle = 90))+
+  ggtitle("Cost of Hip-Knee Procedure by Medical Facility in SF")+
+  xlab("Name of Medical Facility")+
+  ylab("Cost of Procedure")
+```
+
+Next, I'm curious about the ratings. How do these hospitals compare in terms of the overall ratings? I use the same methodology as above, but this time make a data frame out of the Facility.Name and Rating.Overall columns:
+
+```{r}
+sf_rating <- san_francisco_hospitals$Rating.Overall
+bar1 <- data.frame(sf_facilities, sf_rating)
+ggplot(bar1)+geom_col(mapping=aes(x=sf_facilities, fill = sf_facilities, y=sf_rating))+
+  scale_x_discrete(guide = guide_axis(angle = 90))+
+  ggtitle("Overall Ratings of Medical Facilities in SF")+
+  xlab("Name of Medical Facility")+
+  ylab("Overall Ratings")
+```
+
+Interestingly, some of the most highly-rated hospitals (like Chinese Hospital) have this procedure free. Is there any correlation between the rating and the cost of this procedure? To find out, I make a combined data frame of the facility name, cost of the procedure, and overall rating, and make a scatterplot.
+
+```{r}
+sf_ratings_and_cost <- data.frame(sf_facilities, sf_rating, sf_hip)
+ggplot(sf_ratings_and_cost, aes(x=sf_rating, y=sf_hip, color=sf_facilities)) + 
+    geom_point(size=4)
+```
+Even facilities where the procedure is free, like Laguna Honda Hospital, are poorly rated. I would thus say there's not a correlation between these two variables.
+
+### California
+
+Next, I want to look at California hospitals, specifically by their facility type, as I noticed there are church, private, government, and other facility types. To do this, I make five subsets of the CA hospitals subset by filtering by facility type:
+
+```{r}
+ca_church <- ca_hospitals%>%filter(Facility.Type == "Church")
+ca_private <- ca_hospitals%>%filter(Facility.Type == "Private")
+ca_proprietary <- ca_hospitals%>%filter(Facility.Type == "Proprietary")
+ca_government <- ca_hospitals%>%filter(Facility.Type == "Government")
+ca_unknown <- ca_hospitals%>%filter(Facility.Type == "Unknown")
+```
+
+I load the RColorBrewer library because it gives access to nice color palettes.
+To count how many medical facilities fall into each of these categories, I use the nrow() function for each facility type subset, and make a pie chart.
+
+```{r}
+library(RColorBrewer)
+myPalette <- brewer.pal(5, "Set1") 
+num_facility_type <- c(nrow(ca_church), nrow(ca_private), nrow(ca_proprietary), nrow(ca_government), nrow(ca_unknown))
+
+pie(num_facility_type, labels = c("Church","Private","Proprietary","Government","Unknown"), border="white", col=myPalette)
+```
+I'll also call the nrow() function here to see the exact numbers.
+
+```{r}
+nrow(ca_church)
+nrow(ca_private)
+nrow(ca_proprietary)
+nrow(ca_government)
+nrow(ca_unknown)
+```
+It seems like there is a good mix of the type of medical facilities in the state, with the most plentiful being private and the least being church.
+
+How do the mean ratings of these hospitals differ by the type of facility? For each subset, I'll find the means of the Rating.Overall columns and visualize them as a bar graph using ggplot + geom_col:
+
+```{r}
+facility_type <- c("Church","Private","Proprietary","Government","Unknown")
+facility_rating <- c(mean(ca_church$Rating.Overall), 
+                     mean(ca_private$Rating.Overall), 
+                     mean(ca_proprietary$Rating.Overall), 
+                     mean(ca_government$Rating.Overall),
+                     mean(ca_unknown$Rating.Overall))
+                     
+bar_facility <- data.frame(facility_type, facility_rating)
+ggplot(bar_facility)+geom_col(mapping=aes(x=facility_type, fill = facility_type, y=facility_rating))+
+  scale_x_discrete(guide = guide_axis(angle = 90))+
+  ggtitle("Mean Overall Ratings of Medical Facilities in CA by Facility Type")+
+  xlab("Facility Type")+
+  ylab("Mean Overall Ratings")
+```
+
+All types of hospitals seem to have pretty similar average overall ratings, except government-run hospitals which have markedly lower average ratings.
+
+### The United States
+
+How do the mean overall ratings of hospitals differ by each state? Who has the highest? The lowest? First, I subset from the main dataset by each state (which didn't take as long as I thought, but suggestions on automating this would be appreciated):
+
+```{r}
+AL<- hospitals%>%filter(Facility.State == "AL")
+AK<- hospitals%>%filter(Facility.State == "AK")
+AZ<- hospitals%>%filter(Facility.State == "AZ")
+AR<- hospitals%>%filter(Facility.State == "AR")
+CA<- hospitals%>%filter(Facility.State == "CA")
+CO<- hospitals%>%filter(Facility.State == "CO")
+CT<- hospitals%>%filter(Facility.State == "CT")
+DE<- hospitals%>%filter(Facility.State == "DE")
+DC<- hospitals%>%filter(Facility.State == "DC")
+FL<- hospitals%>%filter(Facility.State == "FL")
+GA<- hospitals%>%filter(Facility.State == "GA")
+HI<- hospitals%>%filter(Facility.State == "HI")
+ID<- hospitals%>%filter(Facility.State == "ID")
+IL<- hospitals%>%filter(Facility.State == "IL")
+IN<- hospitals%>%filter(Facility.State == "IN")
+IA<- hospitals%>%filter(Facility.State == "IA")
+KS<- hospitals%>%filter(Facility.State == "KS")
+KY<- hospitals%>%filter(Facility.State == "KY")
+LA<- hospitals%>%filter(Facility.State == "LA")
+ME<- hospitals%>%filter(Facility.State == "ME")
+MD<- hospitals%>%filter(Facility.State == "MD")
+MA<- hospitals%>%filter(Facility.State == "MA")
+MI<- hospitals%>%filter(Facility.State == "MN")
+MS<- hospitals%>%filter(Facility.State == "MS")
+MO<- hospitals%>%filter(Facility.State == "MO")
+MT<- hospitals%>%filter(Facility.State == "MT")
+NE<- hospitals%>%filter(Facility.State == "NE")
+NV<- hospitals%>%filter(Facility.State == "NV")
+NH<- hospitals%>%filter(Facility.State == "NH")
+NJ<- hospitals%>%filter(Facility.State == "NJ")
+NM<- hospitals%>%filter(Facility.State == "NM")
+NY<- hospitals%>%filter(Facility.State == "NY")
+NC<- hospitals%>%filter(Facility.State == "NC")
+ND<- hospitals%>%filter(Facility.State == "ND")
+OH<- hospitals%>%filter(Facility.State == "OH")
+OK<- hospitals%>%filter(Facility.State == "OK")
+OR<- hospitals%>%filter(Facility.State == "OR")
+PA<- hospitals%>%filter(Facility.State == "PA")
+PR<- hospitals%>%filter(Facility.State == "PR")
+RI<- hospitals%>%filter(Facility.State == "RI")
+SC<- hospitals%>%filter(Facility.State == "SC")
+SD<- hospitals%>%filter(Facility.State == "SD")
+TN<- hospitals%>%filter(Facility.State == "TN")
+TX<- hospitals%>%filter(Facility.State == "TX")
+UT<- hospitals%>%filter(Facility.State == "UT")
+VT<- hospitals%>%filter(Facility.State == "VT")
+VI<- hospitals%>%filter(Facility.State == "VI")
+VA<- hospitals%>%filter(Facility.State == "VA")
+WA<- hospitals%>%filter(Facility.State == "WA")
+WV<- hospitals%>%filter(Facility.State == "WV")
+WI<- hospitals%>%filter(Facility.State == "WI")
+WY<- hospitals%>%filter(Facility.State == "WY")
+```
+
+I made a column for all of the states by code, and in order:
+
+```{r}
+states <- c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "PR", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VI", "VA", "WA", "WV", "WI", "WY")
+```
+
+Then I make a column for the means of the overall ratings by states, and in order:
+
+```{r}
+states_ratings <- c(mean(AL$Rating.Overall), mean(AK$Rating.Overall), mean(AZ$Rating.Overall), mean(AR$Rating.Overall), mean(CA$Rating.Overall), mean(CO$Rating.Overall), mean(CT$Rating.Overall), mean(DE$Rating.Overall), mean(DC$Rating.Overall), mean(FL$Rating.Overall), mean(GA$Rating.Overall), mean(HI$Rating.Overall), mean(ID$Rating.Overall), mean(IL$Rating.Overall), mean(IN$Rating.Overall), mean(IA$Rating.Overall), mean(KS$Rating.Overall), mean(KY$Rating.Overall), mean(LA$Rating.Overall), mean(ME$Rating.Overall), mean(MD$Rating.Overall), mean(MA$Rating.Overall), mean(MI$Rating.Overall), mean(MS$Rating.Overall), mean(MO$Rating.Overall), mean(MT$Rating.Overall), mean(NE$Rating.Overall), mean(NV$Rating.Overall), mean(NH$Rating.Overall), mean(NJ$Rating.Overall), mean(NM$Rating.Overall), mean(NY$Rating.Overall), mean(NC$Rating.Overall), mean(ND$Rating.Overall), mean(OH$Rating.Overall), mean(OK$Rating.Overall), mean(OR$Rating.Overall), mean(PA$Rating.Overall), mean(PR$Rating.Overall), mean(RI$Rating.Overall), mean(SC$Rating.Overall), mean(SD$Rating.Overall), mean(TN$Rating.Overall), mean(TX$Rating.Overall), mean(UT$Rating.Overall), mean(VT$Rating.Overall), mean(VI$Rating.Overall), mean(VA$Rating.Overall), mean(WA$Rating.Overall), mean(WV$Rating.Overall), mean(WI$Rating.Overall), mean(WY$Rating.Overall))
+```
+
+Finally, I combined these two columns into a data frame and visualize via a bar graph:
+
+```{r}
+states_and_ratings <- data.frame(states, states_ratings)
+ggplot(states_and_ratings)+geom_col(mapping=aes(x=states, fill=states, y=states_ratings))+
+  scale_x_discrete(guide = guide_axis(angle = 90))+
+  ggtitle("Mean Overall Rating for Hospitals By State")+
+  xlab("State")+
+  ylab("Mean Overall Ratings for All Hospitals in the State")
+```
+
+I was surprised to find CA was not one of the states with the highest mean overall ratings for hospitals. NH, ME, and ID have the highest ratings, with by far SD and ND having the lowest overall ratings. From the dataset, a rating of -1 for PR means there is no rating.
+
+Which state has the highest hip-knee procedure cost? I followed the same process as above, but this time I looked at the Procedure.Hip Knee.Cost column for all the state subsets:
+
+```{r}
+states_hip_knee <- c(mean(AL$`Procedure.Hip Knee.Cost`), mean(AK$`Procedure.Hip Knee.Cost`), mean(AZ$`Procedure.Hip Knee.Cost`), mean(AR$`Procedure.Hip Knee.Cost`), mean(CA$`Procedure.Hip Knee.Cost`), mean(CO$`Procedure.Hip Knee.Cost`), mean(CT$`Procedure.Hip Knee.Cost`), mean(DE$`Procedure.Hip Knee.Cost`), mean(DC$`Procedure.Hip Knee.Cost`), mean(FL$`Procedure.Hip Knee.Cost`), mean(GA$`Procedure.Hip Knee.Cost`), mean(HI$`Procedure.Hip Knee.Cost`), mean(ID$`Procedure.Hip Knee.Cost`), mean(IL$`Procedure.Hip Knee.Cost`), mean(IN$`Procedure.Hip Knee.Cost`), mean(IA$`Procedure.Hip Knee.Cost`), mean(KS$`Procedure.Hip Knee.Cost`), mean(KY$`Procedure.Hip Knee.Cost`), mean(LA$`Procedure.Hip Knee.Cost`), mean(ME$`Procedure.Hip Knee.Cost`), mean(MD$`Procedure.Hip Knee.Cost`), mean(MA$`Procedure.Hip Knee.Cost`), mean(MI$`Procedure.Hip Knee.Cost`), mean(MS$`Procedure.Hip Knee.Cost`), mean(MO$`Procedure.Hip Knee.Cost`), mean(MT$`Procedure.Hip Knee.Cost`), mean(NE$`Procedure.Hip Knee.Cost`), mean(NV$`Procedure.Hip Knee.Cost`), mean(NH$`Procedure.Hip Knee.Cost`), mean(NJ$`Procedure.Hip Knee.Cost`), mean(NM$`Procedure.Hip Knee.Cost`), mean(NY$`Procedure.Hip Knee.Cost`), mean(NC$`Procedure.Hip Knee.Cost`), mean(ND$`Procedure.Hip Knee.Cost`), mean(OH$`Procedure.Hip Knee.Cost`), mean(OK$`Procedure.Hip Knee.Cost`), mean(OR$`Procedure.Hip Knee.Cost`), mean(PA$`Procedure.Hip Knee.Cost`), mean(PR$`Procedure.Hip Knee.Cost`), mean(RI$`Procedure.Hip Knee.Cost`), mean(SC$`Procedure.Hip Knee.Cost`), mean(SD$`Procedure.Hip Knee.Cost`), mean(TN$`Procedure.Hip Knee.Cost`), mean(TX$`Procedure.Hip Knee.Cost`), mean(UT$`Procedure.Hip Knee.Cost`), mean(VT$`Procedure.Hip Knee.Cost`), mean(VI$`Procedure.Hip Knee.Cost`), mean(VA$`Procedure.Hip Knee.Cost`), mean(WA$`Procedure.Hip Knee.Cost`), mean(WV$`Procedure.Hip Knee.Cost`), mean(WI$`Procedure.Hip Knee.Cost`), mean(WY$`Procedure.Hip Knee.Cost`))
+```
+
+I plotted using ggplot + geom_col:
+
+```{r}
+states_and_hip_knee <- data.frame(states, states_hip_knee)
+ggplot(states_and_hip_knee)+geom_col(mapping=aes(x=states, fill=states, y=states_hip_knee))+
+  scale_x_discrete(guide = guide_axis(angle = 90))+
+  ggtitle("Mean Cost for A Hip-Knee Procedure by State")+
+  xlab("State")+
+  ylab("Mean Cost for Hip-Knee Procedures in the State")
+```
+
+MA and MD, by far, have the highest cost for this procedure. PR, SD, and ND, the states with the lowest overall ratings, also have low costs for this procedure.
+
+Finally, I made a histogram to visualize how many states were in each of the mean rating categories:
+
+```{r}
+myPalette2 <- brewer.pal(5, "Set2") 
+
+ggplot(states_and_ratings, aes(x=states_ratings)) + 
+  geom_histogram(binwidth=1, fill=myPalette2, color="#FFFFFF")+
+  ggtitle("Histogram of States and Ratings")+
+  xlab("Mean Overall Rating")+
+  ylab("Count (How Many States Have the Rating)")
+```
+
+Most states have a mean overall rating of around 2.
+
+I feel as though the data is valid, especially the analyses involving many states, cities, and the means of both rating and cost of procedures. I wanted to figure out how overall rating and cost of a hip-knee procedure were correlated by state but was unable to figure out the code. Future analyses like comparing the costs of all procedures across all states, as well as the ratings for timeliness and overall experience, would be interesting to visualize and can potentially be used as a tool to help patients pick the right medical facility for them.
+
+## References
+
+The dataset used for analysis is from the CORGIS 
+Datasets Project, by Austin Cory Bart, Ryan Whitcomb, Jason Riddle, Omar Saleem,
+Dr. Eli Tilevich, Dr. Clifford A. Shaffer, and Dr. Dennis Kafura:
+
+Bart, A. et al. CORGIS: The Collection of Really Great, Interesting, Situated
+Datasets. https://corgis-edu.github.io/corgis/csv/.
+
+The dataset specifically is specifically by Dr. Dennis Kafura:
+
+Kafura, D. (2019). Hospitals CSV File. 
+https://corgis-edu.github.io/corgis/csv/hospitals/.
+
+We primarily referenced the R Graph Gallery by Yan Holtz for formatting the
+visualization of the data:
+
+Holtz, Y. (2018). The R Graph Gallery. https://r-graph-gallery.com/index.html.
+
+Additionally, we referenced old work from our previous statistics classes that
+focused on data visualization and analysis in R.
